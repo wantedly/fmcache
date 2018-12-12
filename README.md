@@ -1,5 +1,8 @@
 # FMCache
 
+[![Build Status](https://travis-ci.org/south37/fmcache.svg?branch=master)](https://travis-ci.org/south37/fmcache)
+[![Gem Version](https://badge.fury.io/rb/fmcache.svg)](https://badge.fury.io/rb/fmcache)
+
 Library for caching json masked by FieldMask
 
 ## Installation
