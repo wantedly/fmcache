@@ -6,19 +6,15 @@ module FMCache
     # @param [FieldMaskParser::Node] field_mask
     # @return [{ String => { String => <Hash> } }]
     def encode(values, field_mask)
+      fields = Helper.to_fields(field_mask)
+
       r = {}
       values.each do |value|
         h = {}
-
-        # NOTE: initialize each field by array
-        fields = Helper.to_fields(field_mask).map(&:to_s)
         fields.each do |f|
           h[f] = []
         end
-
-        encode_one(value, field_mask).each do |f, v|
-          h[f] = v
-        end
+        h.merge! encode_one(value, field_mask)
 
         id = value.fetch(:id)
         r[Helper.to_key(id)] = h

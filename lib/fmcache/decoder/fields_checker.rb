@@ -60,7 +60,7 @@ module FMCache
             missing_fields += m_f
           end
         else
-          # NOTE: When the cach of id does not exist, treat current and lower
+          # NOTE: When the cache of id does not exist, treat current and lower
           # layer as missing fields
           # TODO(south37) Improve performance
           missing_fields += fields

@@ -32,12 +32,14 @@ module FMCache
 
     # @param [<Hash>] list
     # @param [FieldMaskParser::Node] field_mask
+    # @param [<String>] fields
+    # @return [DecodeResult]
     def decode_list(list, field_mask: nil, fields: nil)
       if field_mask.nil? && fields.nil?
         raise "invalid args!"
       end
       if fields
-        field_mask = field_mask_parser.call(fields.map(&:to_s))
+        field_mask = field_mask_parser.call(fields)
       end
 
       values         = []
@@ -61,6 +63,7 @@ module FMCache
       )
     end
 
+    # @param [FieldsChecker::CheckResult] decode_result
     # @param [DecodeResult] decode_result
     # @param [DecodeResult] invalid_decode_result
     # @return [<Hash>, <Hash>, IncompleteInfo]

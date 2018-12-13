@@ -2,6 +2,7 @@ module FMCache
   class Helper
     class << self
       # @param [FieldMaskParser::Node] field_mask
+      # @param [<Symbol>] prefix
       # @return [<String>]
       def to_fields(field_mask, prefix: [])
         field_mask.to_paths(prefix: prefix, sort: false)
