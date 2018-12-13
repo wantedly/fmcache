@@ -3,12 +3,13 @@ module FMCache
     DEFAULT_TTL = 7 * 24 * 3600  # 7 days
 
     # @param [Redis | MockRRedis] client
-    def initialize(client:, fm_parser:, ttl: DEFAULT_TTL, notifier: nil)
+    def initialize(client:, fm_parser:, ttl: DEFAULT_TTL, notifier: nil, json_serializer: nil)
       @client    = Client.new(client, notifier)
       @fm_parser = wrap(fm_parser)
       @ttl       = ttl
       @encoder   = Encoder.new
       @decoder   = Decoder.new(@fm_parser)
+      @jsonizer  = Jsonizer.new(json_serializer)
     end
 
     attr_reader :client, :fm_parser, :encoder, :decoder
@@ -19,7 +20,7 @@ module FMCache
     def write(values:, field_mask:)
       normalize!(field_mask)
       h = encode(values, field_mask)
-      client.set(values: Helper.jsonize(h), ttl: @ttl)
+      client.set(values: @jsonizer.jsonize(h), ttl: @ttl)
     end
 
     # @param [<Integer | String>] ids
@@ -32,7 +33,7 @@ module FMCache
       keys   = Helper.to_keys(ids)
       fields = Helper.to_fields(field_mask).map(&:to_s)
       h = client.get(keys: keys, fields: fields)
-      decode(merge(Helper.dejsonize(h), ids), field_mask)
+      decode(merge(@jsonizer.dejsonize(h), ids), field_mask)
     end
 
     # @param [<Integer | String>] ids
