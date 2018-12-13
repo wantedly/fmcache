@@ -26,42 +26,6 @@ module FMCache
         "fmcache:#{id}"
       end
 
-      # @param [{ String => { String => <Hash> } }] hash
-      # @return [{ String => { String => String } }]
-      def jsonize(hash)
-        r = {}
-        hash.each do |k, v|
-          h = {}
-          v.each do |kk, vv|
-            h[kk] = vv.to_json
-          end
-          r[k] = h
-        end
-        r
-      end
-
-      # @param [{ String => { String => String } }] hash
-      # @return [{ String => { String => <Hash> } }]
-      def dejsonize(hash)
-        r = {}
-        hash.each do |k, v|
-          h = {}
-          v.each do |kk, vv|
-            if vv.nil?
-              h[kk] = nil
-            else
-              begin
-                h[kk] = JSON.parse(vv, symbolize_names: true)
-              rescue
-                h[kk] = nil
-              end
-            end
-          end
-          r[k] = h
-        end
-        r
-      end
-
       # @param [<Hash>] values
       # @param [<Integer>] ids
       # @return [<Hash>]

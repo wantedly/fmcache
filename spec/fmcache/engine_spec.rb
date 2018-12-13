@@ -237,7 +237,13 @@ describe FMCache::Engine do
         engine.write(values: [value], field_mask: field_mask)
 
         # Write inconsistent data
-        redis.hmset("fmcache:1", "profile.schools.name", [{ id: 20, p_id: 2, value: "Wantedly" }].to_json)
+        redis.hmset(
+          "fmcache:1",
+          "profile.schools.name",
+          FMCache::Jsonizer::DefaultJsonSerializer.dump([
+            { id: 20, p_id: 2, value: "Wantedly" }
+          ])
+        )
 
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
