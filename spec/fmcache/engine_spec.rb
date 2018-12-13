@@ -293,7 +293,7 @@ describe FMCache::Engine do
       it "returns no data" do
         r = engine.fetch(ids: [1], field_mask: field_mask) do |_ids, _field_mask|
           expect(_ids).to eq [1]
-          expect(_field_mask.to_h).to eq field_mask.to_h
+          expect(_field_mask.to_paths).to eq field_mask.to_paths
           [value]
         end
         expect(r).to eq [value]
@@ -331,7 +331,7 @@ describe FMCache::Engine do
         engine.write(values: [cached_value], field_mask: field_mask)
         r = engine.fetch(ids: [1, 2], field_mask: field_mask) do |_ids, _field_mask|
           expect(_ids).to eq [2]
-          expect(_field_mask.to_h).to eq field_mask.to_h
+          expect(_field_mask.to_paths).to eq field_mask.to_paths
           [no_cached_value]
         end
         expect(r).to eq [cached_value, no_cached_value]
@@ -376,7 +376,7 @@ describe FMCache::Engine do
 
         r = engine.fetch(ids: [1, 2], field_mask: field_mask) do |_ids, _field_mask|
           expect(_ids).to eq [2]
-          expect(_field_mask.to_h).to eq fm_parser.call(["name", "id"]).to_h
+          expect(_field_mask.to_paths).to eq ["id", "name"]
           [{ id: 2, name: "Kento" }]
         end
         expect(r).to eq [cached_value, partialy_cached_value]
@@ -431,7 +431,7 @@ describe FMCache::Engine do
 
         r = engine.fetch(ids: [3, 2, 1], field_mask: field_mask) do |_ids, _field_mask|
           expect(_ids).to eq [3, 2]
-          expect(_field_mask.to_h).to eq field_mask.to_h
+          expect(_field_mask.to_paths).to eq field_mask.to_paths
           [partialy_cached_value, no_cached_value]
         end
         expect(r).to eq [no_cached_value, partialy_cached_value, cached_value]
@@ -484,12 +484,12 @@ describe FMCache::Engine do
 
         r = engine.fetch(ids: [1], field_mask: read_field_mask) do |_ids, _field_mask|
           expect(_ids).to eq [1]
-          expect(_field_mask.to_h).to eq fm_parser.call([
+          expect(_field_mask.to_paths).to eq [
             "id",
             "profile.id",
-            "profile.schools.name",
             "profile.schools.id",
-          ]).to_h
+            "profile.schools.name",
+          ]
           [fetched_value]
         end
         expect(r).to eq [
