@@ -3,6 +3,10 @@ module FMCache
     DEFAULT_TTL = 7 * 24 * 3600  # 7 days
 
     # @param [Redis | MockRRedis] client
+    # @param [Proc] fm_parser
+    # @param [Integer] ttl
+    # @param [Proc] notifier
+    # @param [#dump#load] json_serializer
     def initialize(client:, fm_parser:, ttl: DEFAULT_TTL, notifier: nil, json_serializer: nil)
       @client    = Client.new(client, notifier)
       @fm_parser = wrap(fm_parser)
@@ -31,7 +35,7 @@ module FMCache
       normalize!(field_mask)
 
       keys   = Helper.to_keys(ids)
-      fields = Helper.to_fields(field_mask).map(&:to_s)
+      fields = Helper.to_fields(field_mask)
       h = client.get(keys: keys, fields: fields)
       decode(merge(@jsonizer.dejsonize(h), ids), field_mask)
     end
@@ -66,6 +70,7 @@ module FMCache
       Helper.sort(values + v + i_v, ids)
     end
 
+    # @param [<Integer | String>] ids
     def delete(ids:)
       ids = ids.map(&:to_i)
       client.del(keys: Helper.to_keys(ids))
@@ -99,6 +104,8 @@ module FMCache
       hash
     end
 
+    # @param [Proc] fm_parser
+    # @return [Proc]
     def wrap(fm_parser)
       -> (fields) {
         n = fm_parser.call(fields)
@@ -107,6 +114,7 @@ module FMCache
       }
     end
 
+    # @param [FieldMaskParser::Node] field_mask
     def normalize!(field_mask)
       if !field_mask.attrs.include?(:id)
         field_mask.attrs << :id

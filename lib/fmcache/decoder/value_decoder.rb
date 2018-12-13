@@ -13,7 +13,7 @@ module FMCache
 
         h = fetch(field_mask, [])
 
-        d = h.values.first  # NOTE: Top of h is a user
+        d = h.values.first  # NOTE: Top of h is a hash
 
         [d.to_h, @invalid_fields]
       end
@@ -53,6 +53,8 @@ module FMCache
         r
       end
 
+      # @param [FieldMaskParser::Node] field_mask
+      # @param [<Symbol>] prefix
       def fetch_items(field_mask, prefix)
         r = {}
         field_mask.attrs.each do |attr|
@@ -66,14 +68,15 @@ module FMCache
         r
       end
 
-      # @param [String] h
+      # @param [<Hash>] h
+      # @return [<Item>]
       def itemize(h)
         h.map do |hh|
           Item.new(id: hh.fetch(:id), p_id: hh.fetch(:p_id), value: hh.fetch(:value))
         end
       end
 
-      # @param [{ Integer => Data }]
+      # @param [{ Integer => Data }] parents
       # @param [FieldMaskParser::Node] field_mask
       # @param [<Symbol>] prefix
       def assign_has_one!(parents, field_mask, prefix)
