@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    fmcache (0.1.1)
+    fmcache (0.1.2)
       field_mask_parser (~> 0.4.2)
 
 GEM
