@@ -4,14 +4,7 @@ module FMCache
       # @param [FieldMaskParser::Node] field_mask
       # @return [<String>]
       def to_fields(field_mask, prefix: [])
-        r = []
-        field_mask.attrs.each do |attr|
-          r << Field.to_s(prefix: prefix, attr: attr)
-        end
-        field_mask.assocs.each do |assoc|
-          r += to_fields(assoc, prefix: prefix + [assoc.name])
-        end
-        r
+        field_mask.to_paths(prefix: prefix, sort: false)
       end
 
       # @param [<Integer>] ids

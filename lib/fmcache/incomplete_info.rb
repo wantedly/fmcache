@@ -9,7 +9,7 @@ module FMCache
 
     def ==(other)
       @ids == other.ids &&
-        @field_mask.to_h == other.field_mask.to_h
+        @field_mask.to_paths == other.field_mask.to_paths
     end
 
     def eql?(other)
