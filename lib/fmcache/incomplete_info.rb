@@ -8,7 +8,8 @@ module FMCache
     attr_reader :ids, :field_mask
 
     def ==(other)
-      @ids == other.ids &&
+      self.class == other.class &&
+        @ids == other.ids &&
         @field_mask.to_paths == other.field_mask.to_paths
     end
 
