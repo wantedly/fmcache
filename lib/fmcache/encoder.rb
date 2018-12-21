@@ -10,10 +10,9 @@ module FMCache
 
       r = {}
       values.each do |value|
-        h = {}
-        fields.each do |f|
-          h[f] = []
-        end
+        # NOTE: `[]` is the default value of each field.
+        h = fields.map { |f| [f, []] }.to_h
+
         h.merge! encode_one(value, field_mask)
 
         id = value.fetch(:id)

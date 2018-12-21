@@ -29,10 +29,11 @@ module FMCache
         end
 
         field_mask.has_ones.each do |assoc|
-          v = value[assoc.name] || {}
-          p = prefix + [assoc.name]
-
-          traverse!(value: v, field_mask: assoc, prefix: p, p_id: id)
+          v = value[assoc.name]
+          if v  # NOTE: Proceed only when value exists
+            p = prefix + [assoc.name]
+            traverse!(value: v, field_mask: assoc, prefix: p, p_id: id)
+          end
         end
 
         field_mask.has_manies.each do |assoc|

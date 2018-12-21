@@ -48,12 +48,12 @@ describe FMCache::Engine do
         engine.write(values: [value], field_mask: field_mask)
         expect(redis.hgetall("fmcache:1")).to eq({
           "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
-          "profile.id" => "[{\"value\":null,\"id\":null,\"p_id\":1}]",
-          "profile.introduction" => "[{\"value\":null,\"id\":null,\"p_id\":1}]",
+          "profile.id" => "[]",
+          "profile.introduction" => "[]",
         })
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
-          [{ id: 1, profile: { id: nil, introduction: nil } }],
+          [{ id: 1, profile: nil }],
           [],
           FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
         ]
@@ -88,6 +88,8 @@ describe FMCache::Engine do
                  location: "Toko-to",
                },
              ],
+             friends:      [],
+             item:         nil,
            }
         }
       }
@@ -98,6 +100,9 @@ describe FMCache::Engine do
           "profile.schools.name",
           "profile.schools.parks.location",
           "profile.homes.location",
+          "profile.friends.name",
+          "profile.item.price",
+          "profile.item.seller.name",
         ]
       }
       let(:field_mask) { fm_parser.call(fields) }
@@ -106,10 +111,16 @@ describe FMCache::Engine do
         engine.write(values: [value], field_mask: field_mask)
         expect(redis.hgetall("fmcache:1")).to eq({
           "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+          "profile.friends.id" => "[]",
+          "profile.friends.name" => "[]",
           "profile.homes.id" => "[{\"value\":33,\"id\":33,\"p_id\":3}]",
           "profile.homes.location" => "[{\"value\":\"Toko-to\",\"id\":33,\"p_id\":3}]",
           "profile.id" => "[{\"value\":3,\"id\":3,\"p_id\":1}]",
           "profile.introduction" => "[{\"value\":\"Hello\",\"id\":3,\"p_id\":1}]",
+          "profile.item.id" => "[]",
+          "profile.item.price" => "[]",
+          "profile.item.seller.id" => "[]",
+          "profile.item.seller.name" => "[]",
           "profile.schools.id" => "[{\"value\":20,\"id\":20,\"p_id\":3},{\"value\":21,\"id\":21,\"p_id\":3}]",
           "profile.schools.name" => "[{\"value\":\"University of Tokyo\",\"id\":20,\"p_id\":3},{\"value\":\"University of Osaka\",\"id\":21,\"p_id\":3}]",
           "profile.schools.parks.id" => "[{\"value\":30,\"id\":30,\"p_id\":21},{\"value\":31,\"id\":31,\"p_id\":21}]",
@@ -583,6 +594,8 @@ describe FMCache::Engine do
 
     has_many :schools
     has_many :homes
+    has_many :friends
+    has_one :item
   end
 
   class School < ActiveRecord::Base
@@ -607,6 +620,32 @@ describe FMCache::Engine do
     class << self
       def attribute_names
         ["id", "location"]
+      end
+    end
+  end
+
+  class Friend < ActiveRecord::Base
+    class << self
+      def attribute_names
+        ["id", "name"]
+      end
+    end
+  end
+
+  class Item < ActiveRecord::Base
+    class << self
+      def attribute_names
+        ["id", "price"]
+      end
+    end
+
+    has_one :seller
+  end
+
+  class Seller < ActiveRecord::Base
+    class << self
+      def attribute_names
+        ["id", "name"]
       end
     end
   end

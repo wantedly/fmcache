@@ -53,7 +53,11 @@ module FMCache
             r[name] = item.value
           end
           @has_ones.each do |name, data|
-            r[name] = data.to_h
+            if data
+              r[name] = data.to_h
+            else
+              r[name] = nil
+            end
           end
           @has_manies.each do |name, data_list|
             r[name] = data_list.map(&:to_h)
