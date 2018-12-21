@@ -29,18 +29,18 @@ module FMCache
         end
 
         field_mask.has_ones.each do |assoc|
-          v      = value[assoc.name] || {}
-          prefix = prefix + [assoc.name]
+          v = value[assoc.name] || {}
+          p = prefix + [assoc.name]
 
-          traverse!(value: v, field_mask: assoc, prefix: prefix, p_id: id)
+          traverse!(value: v, field_mask: assoc, prefix: p, p_id: id)
         end
 
         field_mask.has_manies.each do |assoc|
           values = value[assoc.name] || []
-          prefix = prefix + [assoc.name]
+          p      = prefix + [assoc.name]
 
           values.each do |v|
-            traverse!(value: v, field_mask: assoc, prefix: prefix, p_id: id)
+            traverse!(value: v, field_mask: assoc, prefix: p, p_id: id)
            end
         end
       end
