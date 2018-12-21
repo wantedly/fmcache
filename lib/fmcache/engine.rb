@@ -66,16 +66,16 @@ module FMCache
 
       v, i_v, i_i = decode(older.deep_merge(newer), field_mask)
 
-      if i_i.ids.size > 0
-        # NOTE: Delete invalid data as read repair
-        client.hdel(
-          keys:   Helper.to_keys(i_i.ids),
-          fields: Helper.to_fields(i_i.field_mask),
-        )
-        # TODO(south37) Fallback to block.call with full field_mask
+      if i_i.ids.size == 0
+        r = values + v + i_v
+      else
+        # NOTE: Fallback to block.call with full field_mask
+        d2 = block.call(i_i.ids, field_mask)
+        write(values: d2, field_mask: field_mask)
+        r = values + d2
       end
 
-      Helper.sort(values + v + i_v, ids)
+      Helper.sort(r, ids)
     end
 
     # @param [<Integer | String>] ids
