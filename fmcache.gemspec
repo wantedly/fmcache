@@ -30,5 +30,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "mock_redis", "~> 0.19"
   spec.add_development_dependency "redis", "~> 4.0"
   spec.add_development_dependency "activerecord", "~> 5.2"
-  spec.add_dependency "field_mask_parser", "~> 0.4.2"
+  spec.add_dependency "field_mask_parser", "~> 0.4.3"
 end

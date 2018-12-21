@@ -477,50 +477,42 @@ describe FMCache::Engine do
            }
         }
       }
+      let(:complete_value) {
+        {
+           id:      1,
+           name:    "Taro",
+           profile: {
+             id:           3,
+             introduction: "Hello",
+             schools:      [
+               {
+                 id:   20,
+                 name: "University of Tokyo",
+               }
+             ],
+           }
+        }
+      }
       let(:cached_field_mask) { fm_parser.call(["name", "profile.introduction"]) }
       let(:read_field_mask) { fm_parser.call(["name", "profile.introduction", "profile.schools.name"]) }
+      let(:block) { -> {} }
+
+      before do
+        expect(block).to receive(:call).with([1], fm_parser.call([
+          "id",
+          "profile.id",
+          "profile.schools.id",
+          "profile.schools.name",
+        ])).and_return([fetched_value])
+
+        expect(block).to receive(:call).with([1], read_field_mask).and_return([complete_value])
+      end
 
       it "returns a part of data" do
         engine.write(values: [cached_value], field_mask: cached_field_mask)
 
-        expect(engine.client).to receive(:hdel).with(
-          keys:   [
-            "fmcache:1"
-          ],
-          fields: [
-            "id",
-            "profile.introduction",
-            "profile.id",
-            "profile.schools.name",
-            "profile.schools.id",
-          ],
-        )
-
-        r = engine.fetch(ids: [1], field_mask: read_field_mask) do |_ids, _field_mask|
-          expect(_ids).to eq [1]
-          expect(_field_mask.to_paths).to eq [
-            "id",
-            "profile.id",
-            "profile.schools.id",
-            "profile.schools.name",
-          ]
-          [fetched_value]
-        end
-        expect(r).to eq [
-          {
-            id:      1,
-            name:    "Taro",
-            profile: {
-              id:      4,
-              schools: [
-                {
-                  id:   20,
-                  name: "University of Tokyo"
-                }
-              ]
-            }
-          }
-        ]
+        r = engine.fetch(ids: [1], field_mask: read_field_mask, &block)
+        expect(r).to eq [complete_value]
       end
     end
   end
