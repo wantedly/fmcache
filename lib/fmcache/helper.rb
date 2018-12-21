@@ -1,5 +1,7 @@
 module FMCache
   class Helper
+    KEY_PREFIX = "fmcache:"
+
     class << self
       # @param [FieldMaskParser::Node] field_mask
       # @param [<Symbol>] prefix
@@ -17,7 +19,23 @@ module FMCache
       # @param [Integer] id
       # @return [String]
       def to_key(id)
-        "fmcache:#{id}"
+        "#{KEY_PREFIX}#{id}"
+      end
+
+      # @param [<String>] keys
+      # @return [<Integer>]
+      def to_ids(keys)
+        keys.map { |key| to_id(key) }
+      end
+
+      # @param [String] id
+      # @return [Integer]
+      def to_id(key)
+        if key[0..7] == KEY_PREFIX
+          key[8..-1].to_i
+        else
+          raise "invalid key: #{key}"
+        end
       end
 
       # @param [<Hash>] values
