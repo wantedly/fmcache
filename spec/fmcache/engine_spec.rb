@@ -31,7 +31,7 @@ describe FMCache::Engine do
         expect(r).to eq [
           [value],
           [],
-          FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"]))
+          FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
         ]
       end
     end
@@ -47,7 +47,7 @@ describe FMCache::Engine do
         expect(r).to eq [
           [{ id: 1, profile: { id: nil, introduction: nil } }],
           [],
-          FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"]))
+          FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
         ]
       end
     end
@@ -113,7 +113,7 @@ describe FMCache::Engine do
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
           [],
-          [{ id: 1 }],
+          [],
           FMCache::IncompleteInfo.new(ids: [1], field_mask: fm_parser.call([
             "id",
             "profile.introduction",
@@ -272,6 +272,20 @@ describe FMCache::Engine do
   end
 
   describe "#fetch" do
+    context "when no data exists" do
+      let(:fields) { ["id"] }
+      let(:field_mask) { fm_parser.call(fields) }
+
+      it "returns no data" do
+        r = engine.fetch(ids: [1], field_mask: field_mask) do |_ids, _field_mask|
+          expect(_ids).to eq [1]
+          expect(_field_mask.to_paths).to eq field_mask.to_paths
+          []
+        end
+        expect(r).to eq []
+      end
+    end
+
     context "when no data is cached" do
       let(:value) {
         {
@@ -329,8 +343,8 @@ describe FMCache::Engine do
 
       it "returns no data" do
         engine.write(values: [cached_value], field_mask: field_mask)
-        r = engine.fetch(ids: [1, 2], field_mask: field_mask) do |_ids, _field_mask|
-          expect(_ids).to eq [2]
+        r = engine.fetch(ids: [1, 2, 3], field_mask: field_mask) do |_ids, _field_mask|
+          expect(_ids).to eq [2, 3]
           expect(_field_mask.to_paths).to eq field_mask.to_paths
           [no_cached_value]
         end
@@ -429,8 +443,8 @@ describe FMCache::Engine do
 
         redis.hdel("fmcache:2", "name")
 
-        r = engine.fetch(ids: [3, 2, 1], field_mask: field_mask) do |_ids, _field_mask|
-          expect(_ids).to eq [3, 2]
+        r = engine.fetch(ids: [4, 3, 2, 1], field_mask: field_mask) do |_ids, _field_mask|
+          expect(_ids).to eq [2, 4, 3]
           expect(_field_mask.to_paths).to eq field_mask.to_paths
           [partialy_cached_value, no_cached_value]
         end
@@ -526,7 +540,7 @@ describe FMCache::Engine do
       expect(engine.delete(ids: [1])).to eq true
       expect(engine.read(ids: [1], field_mask: field_mask)).to eq [
         [],
-        [{ id: 1 }],
+        [],
         FMCache::IncompleteInfo.new(ids: [1], field_mask: fm_parser.call(["name", "id"])),
       ]
     end

@@ -37,7 +37,12 @@ module FMCache
       keys   = Helper.to_keys(ids)
       fields = Helper.to_fields(field_mask)
       h = client.get(keys: keys, fields: fields)
-      decode(merge(@jsonizer.dejsonize(h), ids), field_mask)
+
+      with_id, with_no_id = split(h)
+      v, i_v, i_i = decode(@jsonizer.dejsonize(with_id), field_mask)
+      with_no_id_list = Helper.to_ids(with_no_id.keys)
+
+      return v, i_v, merge(i_i, with_no_id_list, field_mask)
     end
 
     # @param [<Integer | String>] ids
@@ -50,7 +55,7 @@ module FMCache
       normalize!(field_mask)
 
       values, incomplete_values, incomplete_info = read(ids: ids, field_mask: field_mask)
-      return values if incomplete_values.size == 0
+      return values if incomplete_info.ids == 0
 
       # NOTE: get new data
       d = block.call(incomplete_info.ids, incomplete_info.field_mask)
@@ -61,11 +66,14 @@ module FMCache
 
       v, i_v, i_i = decode(older.deep_merge(newer), field_mask)
 
-      # NOTE: Delete invalid data as read repair
-      client.hdel(
-        keys:   Helper.to_keys(i_i.ids),
-        fields: Helper.to_fields(i_i.field_mask),
-      )
+      if i_i.ids.size > 0
+        # NOTE: Delete invalid data as read repair
+        client.hdel(
+          keys:   Helper.to_keys(i_i.ids),
+          fields: Helper.to_fields(i_i.field_mask),
+        )
+        # TODO(south37) Fallback to block.call with full field_mask
+      end
 
       Helper.sort(values + v + i_v, ids)
     end
@@ -92,18 +100,6 @@ module FMCache
       encoder.encode(values, field_mask)
     end
 
-    # @param [{ String => { String => <Hash> } }] hash
-    # @param [<Integer>] ids
-    # @return [{ String => { String => <Hash> } }]
-    def merge(hash, ids)
-      # NOTE: Set `id` to list. json format must be consistent with Encoder and Decoder
-      ids.each do |id|
-        h = hash.fetch(Helper.to_key(id))
-        h.merge!({ "id" => [{ id: id, p_id: nil, value: id }] })
-      end
-      hash
-    end
-
     # @param [Proc] fm_parser
     # @return [Proc]
     def wrap(fm_parser)
@@ -122,6 +118,36 @@ module FMCache
       field_mask.assocs.each do |a|
         normalize!(a)
       end
+    end
+
+    def split(h)
+      with_id    = {}
+      with_no_id = {}
+
+      h.each do |k, v|
+        if v.fetch("id").nil?
+          with_no_id[k] = v
+        else
+          with_id[k] = v
+        end
+      end
+
+      return with_id, with_no_id
+    end
+
+    # @param [IncompleteInfo] incomplete_info
+    # @param [<Integer>] with_no_id_list
+    # @param [FieldMaskParser::Node] field_mask
+    # @return [IncompleteInfo]
+    def merge(incomplete_info, with_no_id_list, field_mask)
+      if with_no_id_list.size == 0
+        return incomplete_info
+      end
+
+      ids = incomplete_info.ids + with_no_id_list
+      fields = Set.new(Helper.to_fields(incomplete_info.field_mask)) | Set.new(Helper.to_fields(field_mask))
+
+      IncompleteInfo.new(ids: ids, field_mask: fm_parser.call(fields))
     end
   end
 end
