@@ -55,7 +55,7 @@ module FMCache
       normalize!(field_mask)
 
       values, incomplete_values, incomplete_info = read(ids: ids, field_mask: field_mask)
-      return values if incomplete_info.ids == 0
+      return values if incomplete_info.ids.size == 0
 
       # NOTE: get new data
       d = block.call(incomplete_info.ids, incomplete_info.field_mask)
