@@ -27,6 +27,9 @@ describe FMCache::Engine do
 
       it "save data" do
         engine.write(values: [value], field_mask: field_mask)
+        expect(redis.hgetall("fmcache:1")).to eq({
+          "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+        })
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
           [value],
@@ -43,6 +46,11 @@ describe FMCache::Engine do
 
       it "save data" do
         engine.write(values: [value], field_mask: field_mask)
+        expect(redis.hgetall("fmcache:1")).to eq({
+          "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+          "profile.id" => "[{\"value\":null,\"id\":null,\"p_id\":1}]",
+          "profile.introduction" => "[{\"value\":null,\"id\":null,\"p_id\":1}]",
+        })
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
           [{ id: 1, profile: { id: nil, introduction: nil } }],
@@ -73,7 +81,13 @@ describe FMCache::Engine do
                    { id: 31, location: "Osaka" },
                  ]
                },
-             ]
+             ],
+             homes:        [
+               {
+                 id:       33,
+                 location: "Toko-to",
+               },
+             ],
            }
         }
       }
@@ -83,12 +97,24 @@ describe FMCache::Engine do
           "profile.introduction",
           "profile.schools.name",
           "profile.schools.parks.location",
+          "profile.homes.location",
         ]
       }
       let(:field_mask) { fm_parser.call(fields) }
 
       it "save data" do
         engine.write(values: [value], field_mask: field_mask)
+        expect(redis.hgetall("fmcache:1")).to eq({
+          "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+          "profile.homes.id" => "[{\"value\":33,\"id\":33,\"p_id\":3}]",
+          "profile.homes.location" => "[{\"value\":\"Toko-to\",\"id\":33,\"p_id\":3}]",
+          "profile.id" => "[{\"value\":3,\"id\":3,\"p_id\":1}]",
+          "profile.introduction" => "[{\"value\":\"Hello\",\"id\":3,\"p_id\":1}]",
+          "profile.schools.id" => "[{\"value\":20,\"id\":20,\"p_id\":3},{\"value\":21,\"id\":21,\"p_id\":3}]",
+          "profile.schools.name" => "[{\"value\":\"University of Tokyo\",\"id\":20,\"p_id\":3},{\"value\":\"University of Osaka\",\"id\":21,\"p_id\":3}]",
+          "profile.schools.parks.id" => "[{\"value\":30,\"id\":30,\"p_id\":21},{\"value\":31,\"id\":31,\"p_id\":21}]",
+          "profile.schools.parks.location" => "[{\"value\":\"Tokyo\",\"id\":30,\"p_id\":21},{\"value\":\"Osaka\",\"id\":31,\"p_id\":21}]",
+        })
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
           [value],
@@ -556,6 +582,7 @@ describe FMCache::Engine do
     end
 
     has_many :schools
+    has_many :homes
   end
 
   class School < ActiveRecord::Base
@@ -566,6 +593,14 @@ describe FMCache::Engine do
     end
 
     has_many :parks
+  end
+
+  class Home < ActiveRecord::Base
+    class << self
+      def attribute_names
+        ["id", "location"]
+      end
+    end
   end
 
   class Park < ActiveRecord::Base
