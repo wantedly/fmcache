@@ -10,7 +10,6 @@ describe FMCache::Engine do
       FieldMaskParser.parse(paths: fields, root: User)
     }
   }
-  let(:engine) { FMCache::Engine.new(client: redis, fm_parser: fm_parser) }
 
   after do
     keys = redis.keys("*")
@@ -18,113 +17,145 @@ describe FMCache::Engine do
   end
 
   describe "#write" do
+    let(:engine) {
+      FMCache::Engine.new(
+        client:        redis,
+        fm_parser:     fm_parser,
+        id_key_prefix: id_key_prefix,
+      )
+    }
+
     # TODO(south37) Add test case in which value and field_mask is incosistent
 
-    context "when value has only id" do
+    context "when id_key_prefix is not specified" do
+      let(:id_key_prefix) { nil }
+
+      context "when value has only id" do
+        let(:value) { { id: 1 } }
+        let(:fields) { ["id"] }
+        let(:field_mask) { fm_parser.call(fields) }
+
+        it "save data" do
+          engine.write(values: [value], field_mask: field_mask)
+          expect(redis.hgetall("fmcache:1")).to eq({
+            "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+          })
+          r = engine.read(ids: [1], field_mask: field_mask)
+          expect(r).to eq [
+            [value],
+            [],
+            FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
+          ]
+        end
+      end
+
+      context "when value has only id but field_mask has more fields" do
+        let(:value) { { id: 1 } }
+        let(:fields) { ["id", "profile.introduction"] }
+        let(:field_mask) { fm_parser.call(fields) }
+
+        it "save data" do
+          engine.write(values: [value], field_mask: field_mask)
+          expect(redis.hgetall("fmcache:1")).to eq({
+            "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+            "profile.id" => "[]",
+            "profile.introduction" => "[]",
+          })
+          r = engine.read(ids: [1], field_mask: field_mask)
+          expect(r).to eq [
+            [{ id: 1, profile: nil }],
+            [],
+            FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
+          ]
+        end
+      end
+
+      context "when value has nested structure" do
+        let(:value) {
+          {
+             id:      1,
+             profile: {
+               id:           3,
+               introduction: "Hello",
+               schools:      [
+                 {
+                   id:    20,
+                   name:  "University of Tokyo",
+                   parks: []
+                 },
+                 {
+                   id:    21,
+                   name:  "University of Osaka",
+                   parks: [
+                     { id: 30, location: "Tokyo" },
+                     { id: 31, location: "Osaka" },
+                   ]
+                 },
+               ],
+               homes:        [
+                 {
+                   id:       33,
+                   location: "Toko-to",
+                 },
+               ],
+               friends:      [],
+               item:         nil,
+             }
+          }
+        }
+        let(:fields) {
+          [
+            "id",
+            "profile.introduction",
+            "profile.schools.name",
+            "profile.schools.parks.location",
+            "profile.homes.location",
+            "profile.friends.name",
+            "profile.item.price",
+            "profile.item.seller.name",
+          ]
+        }
+        let(:field_mask) { fm_parser.call(fields) }
+
+        it "save data" do
+          engine.write(values: [value], field_mask: field_mask)
+          expect(redis.hgetall("fmcache:1")).to eq({
+            "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+            "profile.friends.id" => "[]",
+            "profile.friends.name" => "[]",
+            "profile.homes.id" => "[{\"value\":33,\"id\":33,\"p_id\":3}]",
+            "profile.homes.location" => "[{\"value\":\"Toko-to\",\"id\":33,\"p_id\":3}]",
+            "profile.id" => "[{\"value\":3,\"id\":3,\"p_id\":1}]",
+            "profile.introduction" => "[{\"value\":\"Hello\",\"id\":3,\"p_id\":1}]",
+            "profile.item.id" => "[]",
+            "profile.item.price" => "[]",
+            "profile.item.seller.id" => "[]",
+            "profile.item.seller.name" => "[]",
+            "profile.schools.id" => "[{\"value\":20,\"id\":20,\"p_id\":3},{\"value\":21,\"id\":21,\"p_id\":3}]",
+            "profile.schools.name" => "[{\"value\":\"University of Tokyo\",\"id\":20,\"p_id\":3},{\"value\":\"University of Osaka\",\"id\":21,\"p_id\":3}]",
+            "profile.schools.parks.id" => "[{\"value\":30,\"id\":30,\"p_id\":21},{\"value\":31,\"id\":31,\"p_id\":21}]",
+            "profile.schools.parks.location" => "[{\"value\":\"Tokyo\",\"id\":30,\"p_id\":21},{\"value\":\"Osaka\",\"id\":31,\"p_id\":21}]",
+          })
+          r = engine.read(ids: [1], field_mask: field_mask)
+          expect(r).to eq [
+            [value],
+            [],
+            FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
+          ]
+        end
+      end
+    end
+
+    context "when id_key_prefix is specified" do
+      let(:id_key_prefix) { "original_id_prefix" }
       let(:value) { { id: 1 } }
       let(:fields) { ["id"] }
       let(:field_mask) { fm_parser.call(fields) }
 
-      it "save data" do
+      it "save data with customized keys" do
         engine.write(values: [value], field_mask: field_mask)
-        expect(redis.hgetall("fmcache:1")).to eq({
+        expect(redis.hgetall("original_id_prefix:1")).to eq({
           "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
-        })
-        r = engine.read(ids: [1], field_mask: field_mask)
-        expect(r).to eq [
-          [value],
-          [],
-          FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
-        ]
-      end
-    end
-
-    context "when value has only id but field_mask has more fields" do
-      let(:value) { { id: 1 } }
-      let(:fields) { ["id", "profile.introduction"] }
-      let(:field_mask) { fm_parser.call(fields) }
-
-      it "save data" do
-        engine.write(values: [value], field_mask: field_mask)
-        expect(redis.hgetall("fmcache:1")).to eq({
-          "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
-          "profile.id" => "[]",
-          "profile.introduction" => "[]",
-        })
-        r = engine.read(ids: [1], field_mask: field_mask)
-        expect(r).to eq [
-          [{ id: 1, profile: nil }],
-          [],
-          FMCache::IncompleteInfo.new(ids: [], field_mask: fm_parser.call(["id"])),
-        ]
-      end
-    end
-
-    context "when value has nested structure" do
-      let(:value) {
-        {
-           id:      1,
-           profile: {
-             id:           3,
-             introduction: "Hello",
-             schools:      [
-               {
-                 id:    20,
-                 name:  "University of Tokyo",
-                 parks: []
-               },
-               {
-                 id:    21,
-                 name:  "University of Osaka",
-                 parks: [
-                   { id: 30, location: "Tokyo" },
-                   { id: 31, location: "Osaka" },
-                 ]
-               },
-             ],
-             homes:        [
-               {
-                 id:       33,
-                 location: "Toko-to",
-               },
-             ],
-             friends:      [],
-             item:         nil,
-           }
-        }
-      }
-      let(:fields) {
-        [
-          "id",
-          "profile.introduction",
-          "profile.schools.name",
-          "profile.schools.parks.location",
-          "profile.homes.location",
-          "profile.friends.name",
-          "profile.item.price",
-          "profile.item.seller.name",
-        ]
-      }
-      let(:field_mask) { fm_parser.call(fields) }
-
-      it "save data" do
-        engine.write(values: [value], field_mask: field_mask)
-        expect(redis.hgetall("fmcache:1")).to eq({
-          "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
-          "profile.friends.id" => "[]",
-          "profile.friends.name" => "[]",
-          "profile.homes.id" => "[{\"value\":33,\"id\":33,\"p_id\":3}]",
-          "profile.homes.location" => "[{\"value\":\"Toko-to\",\"id\":33,\"p_id\":3}]",
-          "profile.id" => "[{\"value\":3,\"id\":3,\"p_id\":1}]",
-          "profile.introduction" => "[{\"value\":\"Hello\",\"id\":3,\"p_id\":1}]",
-          "profile.item.id" => "[]",
-          "profile.item.price" => "[]",
-          "profile.item.seller.id" => "[]",
-          "profile.item.seller.name" => "[]",
-          "profile.schools.id" => "[{\"value\":20,\"id\":20,\"p_id\":3},{\"value\":21,\"id\":21,\"p_id\":3}]",
-          "profile.schools.name" => "[{\"value\":\"University of Tokyo\",\"id\":20,\"p_id\":3},{\"value\":\"University of Osaka\",\"id\":21,\"p_id\":3}]",
-          "profile.schools.parks.id" => "[{\"value\":30,\"id\":30,\"p_id\":21},{\"value\":31,\"id\":31,\"p_id\":21}]",
-          "profile.schools.parks.location" => "[{\"value\":\"Tokyo\",\"id\":30,\"p_id\":21},{\"value\":\"Osaka\",\"id\":31,\"p_id\":21}]",
         })
         r = engine.read(ids: [1], field_mask: field_mask)
         expect(r).to eq [
@@ -137,6 +168,10 @@ describe FMCache::Engine do
   end
 
   describe "#read" do
+    let(:engine) {
+      FMCache::Engine.new(client: redis, fm_parser: fm_parser)
+    }
+
     context "when no data is cached" do
       let(:fields) {
         [
@@ -309,6 +344,10 @@ describe FMCache::Engine do
   end
 
   describe "#fetch" do
+    let(:engine) {
+      FMCache::Engine.new(client: redis, fm_parser: fm_parser)
+    }
+
     context "when no data exists" do
       let(:fields) { ["id"] }
       let(:field_mask) { fm_parser.call(fields) }
@@ -555,6 +594,10 @@ describe FMCache::Engine do
   end
 
   describe "#delete" do
+    let(:engine) {
+      FMCache::Engine.new(client: redis, fm_parser: fm_parser)
+    }
+
     let(:value) { { id: 1, name: "Taro" } }
     let(:fields) { ["id", "name"] }
     let(:field_mask) { fm_parser.call(fields) }
