@@ -5,15 +5,24 @@ module FMCache
     # @param [Redis | MockRRedis] client
     # @param [Proc] fm_parser
     # @param [Integer] ttl
-    # @param [Proc] notifier
-    # @param [#dump#load] json_serializer
-    def initialize(client:, fm_parser:, ttl: DEFAULT_TTL, notifier: nil, json_serializer: nil)
-      @client    = Client.new(client, notifier)
-      @fm_parser = wrap(fm_parser)
-      @ttl       = ttl
-      @encoder   = Encoder.new
-      @decoder   = Decoder.new(@fm_parser)
-      @jsonizer  = Jsonizer.new(json_serializer)
+    # @param [Proc, nil] notifier
+    # @param [#dump#load, nil] json_serializer
+    # @param [String, nil] id_key_prefix
+    def initialize(
+      client:,
+      fm_parser:,
+      ttl:             DEFAULT_TTL,
+      notifier:        nil,
+      json_serializer: nil,
+      id_key_prefix:   nil
+    )
+      @client     = Client.new(client, notifier)
+      @fm_parser  = wrap(fm_parser)
+      @ttl        = ttl
+      @id_key_gen = IdKeyGen.new(id_key_prefix)
+      @encoder    = Encoder.new(@id_key_gen)
+      @decoder    = Decoder.new(@fm_parser)
+      @jsonizer   = Jsonizer.new(json_serializer)
     end
 
     attr_reader :client, :fm_parser, :encoder, :decoder
@@ -34,13 +43,13 @@ module FMCache
       ids = ids.map(&:to_i)
       normalize!(field_mask)
 
-      keys   = Helper.to_keys(ids)
+      keys   = @id_key_gen.to_keys(ids)
       fields = Helper.to_fields(field_mask)
       h = client.get(keys: keys, fields: fields)
 
       with_id, with_no_id = split(h)
       v, i_v, i_i = decode(@jsonizer.dejsonize(with_id), field_mask)
-      with_no_id_list = Helper.to_ids(with_no_id.keys)
+      with_no_id_list = @id_key_gen.to_ids(with_no_id.keys)
 
       return v, i_v, merge(i_i, with_no_id_list, field_mask)
     end
@@ -81,7 +90,7 @@ module FMCache
     # @param [<Integer | String>] ids
     def delete(ids:)
       ids = ids.map(&:to_i)
-      client.del(keys: Helper.to_keys(ids))
+      client.del(keys: @id_key_gen.to_keys(ids))
     end
 
   private

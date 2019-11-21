@@ -2,6 +2,11 @@ require "fmcache/encoder/itemizer"
 
 module FMCache
   class Encoder
+    # @param [FMCache::IdKeyGen]
+    def initialize(id_key_gen)
+      @id_key_gen = id_key_gen
+    end
+
     # @param [<Hash>] values
     # @param [FieldMaskParser::Node] field_mask
     # @return [{ String => { String => <Hash> } }]
@@ -16,7 +21,7 @@ module FMCache
         h.merge! encode_one(value, field_mask)
 
         id = value.fetch(:id)
-        r[Helper.to_key(id)] = h
+        r[@id_key_gen.to_key(id)] = h
       end
       r
     end
