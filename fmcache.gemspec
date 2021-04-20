@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
 
   spec.summary       = %q{Library for caching json masked by FieldMask}
   spec.description   = %q{Library for caching json masked by FieldMask}
-  spec.homepage      = "https://github.com/south37/fmcache"
+  spec.homepage      = "https://github.com/wantedly/fmcache"
   spec.license       = "MIT"
 
   # Specify which files should be added to the gem when it is released.

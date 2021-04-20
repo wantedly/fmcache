@@ -1,6 +1,6 @@
 # FMCache
 
-[![Build Status](https://travis-ci.org/south37/fmcache.svg?branch=master)](https://travis-ci.org/south37/fmcache)
+[![Build Status](https://travis-ci.org/wantedly/fmcache.svg?branch=master)](https://travis-ci.org/wantedly/fmcache)
 [![Gem Version](https://badge.fury.io/rb/fmcache.svg)](https://badge.fury.io/rb/fmcache)
 
 Library for caching json masked by FieldMask
@@ -57,7 +57,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/south37/fmcache.
+Bug reports and pull requests are welcome on GitHub at https://github.com/wantedly/fmcache.
 
 ## License
 
