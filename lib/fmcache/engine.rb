@@ -8,13 +8,15 @@ module FMCache
     # @param [Proc, nil] notifier
     # @param [#dump#load, nil] json_serializer
     # @param [String, nil] id_key_prefix
+    # @param [Proc, nil] save_condition
     def initialize(
       client:,
       fm_parser:,
       ttl:             DEFAULT_TTL,
       notifier:        nil,
       json_serializer: nil,
-      id_key_prefix:   nil
+      id_key_prefix:   nil,
+      save_condition:  nil
     )
       @client     = Client.new(client, notifier)
       @fm_parser  = wrap(fm_parser)
@@ -23,6 +25,7 @@ module FMCache
       @encoder    = Encoder.new(@id_key_gen)
       @decoder    = Decoder.new(@fm_parser)
       @jsonizer   = Jsonizer.new(json_serializer)
+      @save_condition = save_condition
     end
 
     attr_reader :client, :fm_parser, :encoder, :decoder
@@ -31,6 +34,7 @@ module FMCache
     # @param [FieldMaskParser::Node] field_mask
     # @return [Boolean]
     def write(values:, field_mask:)
+      values = values.select { |value| @save_condition.call(value) } if @save_condition
       normalize!(field_mask)
       h = encode(values, field_mask)
       client.set(values: @jsonizer.jsonize(h), ttl: @ttl)
@@ -56,10 +60,11 @@ module FMCache
 
     # @param [<Integer | String>] ids
     # @param [FieldMaskParser::Node] field_mask
+    # @param [Boolean] skip_write
     # @yieldparam [<Integer>, FieldMaskParser::Node] ids, field_mask
     # @yieldreturn [<Hash>]
     # @return [<Hash>]
-    def fetch(ids:, field_mask:, &block)
+    def fetch(ids:, field_mask:, skip_write: false, &block)
       ids = ids.map(&:to_i)
       normalize!(field_mask)
 
@@ -68,7 +73,7 @@ module FMCache
 
       # NOTE: get new data
       d = block.call(incomplete_info.ids, incomplete_info.field_mask)
-      write(values: d, field_mask: incomplete_info.field_mask)
+      write(values: d, field_mask: incomplete_info.field_mask) unless skip_write
 
       older = encode(incomplete_values, field_mask)
       newer = encode(d,                 incomplete_info.field_mask)
@@ -80,7 +85,7 @@ module FMCache
       else
         # NOTE: Fallback to block.call with full field_mask
         d2 = block.call(i_i.ids, field_mask)
-        write(values: d2, field_mask: field_mask)
+        write(values: d2, field_mask: field_mask) unless skip_write
         r = values + d2
       end
 
