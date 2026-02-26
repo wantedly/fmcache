@@ -165,6 +165,51 @@ describe FMCache::Engine do
         ]
       end
     end
+
+    context "when save_condition is specified" do
+      let(:id_key_prefix) { nil }
+      let(:engine) {
+        FMCache::Engine.new(
+          client:         redis,
+          fm_parser:      fm_parser,
+          id_key_prefix:  id_key_prefix,
+          save_condition: ->(value) { value[:id] != 2 },
+        )
+      }
+      let(:values) {
+        [
+          { id: 1, name: "Taro" },
+          { id: 2, name: "Jiro" },
+          { id: 3, name: "Saburo" },
+        ]
+      }
+      let(:fields) { ["id", "name"] }
+      let(:field_mask) { fm_parser.call(fields) }
+
+      it "filters values based on save_condition" do
+        engine.write(values: values, field_mask: field_mask)
+
+        expect(redis.hgetall("fmcache:1")).to eq({
+          "id" => "[{\"value\":1,\"id\":1,\"p_id\":null}]",
+          "name" => "[{\"value\":\"Taro\",\"id\":1,\"p_id\":null}]",
+        })
+        expect(redis.hgetall("fmcache:2")).to eq({})
+        expect(redis.hgetall("fmcache:3")).to eq({
+          "id" => "[{\"value\":3,\"id\":3,\"p_id\":null}]",
+          "name" => "[{\"value\":\"Saburo\",\"id\":3,\"p_id\":null}]",
+        })
+      end
+
+      it "does not affect read" do
+        engine.write(values: [values[0], values[2]], field_mask: field_mask)
+        r = engine.read(ids: [1, 2, 3], field_mask: field_mask)
+        expect(r).to eq [
+          [{ id: 1, name: "Taro" }, { id: 3, name: "Saburo" }],
+          [],
+          FMCache::IncompleteInfo.new(ids: [2], field_mask: fm_parser.call(["id", "name"])),
+        ]
+      end
+    end
   end
 
   describe "#read" do
@@ -589,6 +634,124 @@ describe FMCache::Engine do
 
         r = engine.fetch(ids: [1], field_mask: read_field_mask, &block)
         expect(r).to eq [complete_value]
+      end
+    end
+
+    context "when skip_write is true" do
+      let(:value) {
+        {
+           id:      1,
+           profile: {
+             id:           3,
+             introduction: "Hello",
+           }
+        }
+      }
+      let(:fields) {
+        [
+          "id",
+          "profile.introduction",
+        ]
+      }
+      let(:field_mask) { fm_parser.call(fields) }
+
+      it "returns data but does not write to cache" do
+        r = engine.fetch(ids: [1], field_mask: field_mask, skip_write: true) do |_ids, _field_mask|
+          expect(_ids).to eq [1]
+          expect(_field_mask.to_paths).to eq field_mask.to_paths
+          [value]
+        end
+        expect(r).to eq [value]
+
+        expect(redis.hgetall("fmcache:1")).to eq({})
+      end
+
+      it "does not overwrite existing cache" do
+        engine.write(values: [value], field_mask: field_mask)
+
+        updated_value = {
+          id:      1,
+          profile: {
+            id:           3,
+            introduction: "Updated Hello",
+          }
+        }
+
+        r = engine.fetch(ids: [1], field_mask: field_mask, skip_write: true) do |_ids, _field_mask|
+          [updated_value]
+        end
+        expect(r).to eq [value]
+
+        r2 = engine.read(ids: [1], field_mask: field_mask)
+        expect(r2[0]).to eq [value]
+      end
+    end
+
+    context "when skip_write is true and fetched value is inconsistent" do
+      let(:cached_value) {
+        {
+           id:      1,
+           name:    "Taro",
+           profile: {
+             id:           3,
+             introduction: "Hello",
+           }
+        }
+      }
+      let(:fetched_value) {
+        {
+           id:      1,
+           profile: {
+             id:      4,
+             schools: [
+               {
+                 id:   20,
+                 name: "University of Tokyo",
+               }
+             ],
+           }
+        }
+      }
+      let(:complete_value) {
+        {
+           id:      1,
+           name:    "Taro",
+           profile: {
+             id:           3,
+             introduction: "Hello",
+             schools:      [
+               {
+                 id:   20,
+                 name: "University of Tokyo",
+               }
+             ],
+           }
+        }
+      }
+      let(:cached_field_mask) { fm_parser.call(["name", "profile.introduction"]) }
+      let(:read_field_mask) { fm_parser.call(["name", "profile.introduction", "profile.schools.name"]) }
+      let(:block) { -> {} }
+
+      before do
+        expect(block).to receive(:call).with([1], fm_parser.call([
+          "id",
+          "profile.id",
+          "profile.schools.id",
+          "profile.schools.name",
+        ])).and_return([fetched_value])
+
+        expect(block).to receive(:call).with([1], read_field_mask).and_return([complete_value])
+      end
+
+      it "returns data but does not write to cache" do
+        engine.write(values: [cached_value], field_mask: cached_field_mask)
+
+        r = engine.fetch(ids: [1], field_mask: read_field_mask, skip_write: true, &block)
+        expect(r).to eq [complete_value]
+
+        r2 = engine.read(ids: [1], field_mask: read_field_mask)
+        expect(r2[0]).to eq []
+        expect(r2[1]).to eq [cached_value]
       end
     end
   end
